@@ -11,20 +11,36 @@ export interface GeoJson {
   };
 }
 
-export interface HiyaMessage {
-  action: "join" | "leave" | "locationUpdate";
+export type HiyaMessage = HiyaLocationUpdate | HiyaRoomAction;
+interface HiyaMessageBase {
   room: string;
-  messageString?: string;
 }
 
-export interface HiyaLocationUpdate {
-  action: "locationUpdate";
-  room: string;
-  location: LatLng;
+export interface HiyaRoomAction extends HiyaMessageBase {
+  type: "room-action";
+  action: "join" | "leave";
+}
+
+/**
+ * Server / Client refers to the origin of the data.
+ */
+export type HiyaLocationUpdate =
+  | HiyaLocationUpdateServer
+  | HiyaLocationUpdateClient;
+
+interface HiyaLocationUpdateServer extends HiyaMessageBase {
+  type: "location-update-server";
+  locations: LatLng[];
+}
+
+interface HiyaLocationUpdateClient extends HiyaMessageBase {
+  type: "location-update-client";
+  newLocation: LatLng;
 }
 
 export interface Connection {
   socket: WebSocket;
+  location?: LatLng;
   name?: string;
 }
 

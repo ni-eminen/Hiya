@@ -26,20 +26,30 @@ interface GeoJson {
   };
 }
 
-interface HiyaMessage {
-  action: "join" | "leave" | "locationUpdate";
+type HiyaMessage = HiyaLocationUpdate | HiyaRoomAction;
+interface HiyaMessageBase {
   room: string;
-  messageString?: string;
 }
 
-export interface HiyaLocationUpdate {
-  action: "locationUpdate";
-  room: string;
-  location: GeoJson;
+interface HiyaRoomAction extends HiyaMessageBase {
+  type: "room-action";
+  action: "join" | "leave";
 }
 
+type HiyaLocationUpdate = HiyaLocationUpdateServer | HiyaLocationUpdateClient;
+
+interface HiyaLocationUpdateServer extends HiyaMessageBase {
+  type: "location-update-server";
+  locations: LatLng[];
+}
+
+interface HiyaLocationUpdateClient extends HiyaMessageBase {
+  type: "location-update-client";
+  newLocation: LatLng;
+}
 interface Connection {
   socket: WebSocket;
+  location?: LatLng;
   name?: string;
 }
 
@@ -72,11 +82,12 @@ wss.on("connection", (ws: WebSocket) => {
   const connection: Connection = {
     socket: ws,
     name: connId,
+    location: [60.22899004950994, 24.958941363122307],
   };
 
   //connection is up, let's add a simple simple event
-  ws.on("message", (data: HiyaMessage) => {
-    const message = parseData(data);
+  ws.on("message", (data: any) => {
+    const message: HiyaMessage = parseData(data);
     if (message === null) {
       ws.send("expected json format");
       return;
@@ -84,8 +95,8 @@ wss.on("connection", (ws: WebSocket) => {
 
     // Get the room
     const room = rooms.find((r) => r.name === message.room);
-    switch (message.action) {
-      case "join":
+    switch (message.type) {
+      case "room-action":
         // Check if room exists
         if (room === undefined) {
           // Create a room and push this connection into it
@@ -105,15 +116,30 @@ wss.on("connection", (ws: WebSocket) => {
           ws.send("joined successfully");
         }
         break;
-      case "locationUpdate":
+      case "location-update-client":
         if (room === undefined) {
           ws.send("room doesnt exist");
-        } else if (message.location !== undefined) {
-          // Send the message  to each connection
-          room.connections.forEach((c) => {
-            c.socket.send(message.messageString);
+        } else if (message.newLocation !== undefined) {
+          const updated = room.connections.map((c) => {
+            if (c.socket === ws) {
+              c.location = message.newLocation;
+              return c.location;
+            }
+            return c.location;
           });
-          console.log((message as HiyaLocationUpdate).location);
+          const data = {
+            locations: updated,
+          };
+          // Send the message  to each connection
+          const newlocs: HiyaLocationUpdateServer = {
+            locations: updated as LatLng[],
+            room: room.name,
+            type: "location-update-server",
+          };
+
+          room.connections.forEach((c) => {
+            c.socket.send(JSON.stringify(newlocs));
+          });
         }
         break;
       default:
@@ -122,7 +148,7 @@ wss.on("connection", (ws: WebSocket) => {
   });
 
   //send immediatly a feedback to the incoming connection
-  ws.send("Hi there, I am a WebSocket server");
+  ws.send("Connected to Hiya websocket server");
 });
 
 //start our server

@@ -1,6 +1,0 @@
-- Create a HERE tracking project
-  - A valid HERE account user
-  - A valid Tracking project
-  - Access to HERE Venue Maps
-
-Indoor tools page https://indoor.here.com/#/tools
